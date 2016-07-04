@@ -24,7 +24,7 @@ class TCP_Client(object):
 	t_Ping=5
 	connected=False
 	
-	def __init__(self,server='cloud.blynk.cc',port=8442):
+	def __init__(self,server='blynk-cloud.com',port=8442):
 		self._Server=server
 		self._Port=port
 		

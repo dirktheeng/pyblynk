@@ -18,7 +18,7 @@ sys.path.append(
 	)
 )
 	
-TOKEN			= '<TOKEN>'
+TOKEN			= 'e08c52cb43c64640bdd7648b74493a54'
 
 import lib.hw as blynk_hw
 import lib.client as blynk_client
