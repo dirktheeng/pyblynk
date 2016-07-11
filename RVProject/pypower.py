@@ -7,7 +7,7 @@ import threading
 import time
 
 class PyPower(object):
-	def __init__(self, currentPin=0, refVoltagePin=1, voltagePin=2, gain=2/3, aveFact=0.001):
+	def __init__(self, currentPin=0, refVoltagePin=1, voltagePin=2, gain=2/3, aveFact=0.1):
 		self.current_pin = currentPin
 		self.ref_voltage_pin = refVoltagePin
 		self.voltage_pin = voltagePin
@@ -30,7 +30,7 @@ class PyPower(object):
 		sensitivity = self._calcSensitivity(ref_voltage)
 		current = (curr_voltage - ref_voltage/2.0) * sensitivity
 		if self.ave_current:
-			self.ave_current = self.ave_fact * current + (1.0 - self.ave_current) * self.ave_current
+			self.ave_current = self.ave_fact * current + (1.0 - self.ave_fact) * self.ave_current
 		else:
 			self.ave_current = current
 #		print curr_voltage, ref_voltage, sensitivity, self.ave_current

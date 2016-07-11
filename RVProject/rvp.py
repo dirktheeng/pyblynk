@@ -75,11 +75,6 @@ if not cConnection.auth(TOKEN):
 	
 cHardware=myHardware(cConnection)
 
-
-#timers
-timer1dt = 5
-timer1 = time.time() + timer1dt
-
 # Micro Controller Loop 
 try:
 	while True:
