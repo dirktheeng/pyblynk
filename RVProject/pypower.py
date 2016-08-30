@@ -23,7 +23,7 @@ class PyPower(PyThreadWorker):
 		self.curr_slope = (0.058 - 0.024)/(12.0 - 5.0)
 		self.curr_intercept = 0.058 - 12.0*self.curr_slope
 		self.ave_current = None
-		PyThreadWorker.__init__(self.measureCurrent)
+		PyThreadWorker.__init__(self, self.measureCurrent)
 
 	def _measureVoltage(self, pin):
 		'''
