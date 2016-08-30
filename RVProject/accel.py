@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 a library for measuring roll and pitch from an accelerameter inside a project box.
 The library contains algorithms to account for misalignment of the sensor with the projecr box.

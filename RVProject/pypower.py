@@ -9,10 +9,9 @@ __credits__ = 'Copyright, Dirk Van Essendelft'
 __license__ = 'MIT'
 
 import Adafruit_ADS1x15
-import threading
-import time
+from pythreadworker import PyThreadWorker
 
-class PyPower(object):
+class PyPower(PyThreadWorker):
 	def __init__(self, currentPin=0, refVoltagePin=1, voltagePin=2, gain=2/3, aveFact=0.1):
 		self.current_pin = currentPin
 		self.ref_voltage_pin = refVoltagePin
@@ -24,8 +23,7 @@ class PyPower(object):
 		self.curr_slope = (0.058 - 0.024)/(12.0 - 5.0)
 		self.curr_intercept = 0.058 - 12.0*self.curr_slope
 		self.ave_current = None
-		self.thread = None
-		self.stop_thread = False
+		PyThreadWorker.__init__(self.measureCurrent)
 
 	def _measureVoltage(self, pin):
 		'''
@@ -58,29 +56,3 @@ class PyPower(object):
 
 	def _calcSensitivity(self, voltage):
 		return 1.0/(self.curr_slope * voltage + self.curr_intercept)
-
-	def threadJob(self):
-		'''
-		worker for the threaded job
-		'''
-		while True:
-			self.measureCurrent()
-			time.sleep(0.05)
-			if self.stop_thread:
-				break
-
-	def startThread(self):
-		'''
-		starts the thread
-		'''
-		if not self.thread:
-			self.thread = threading.Thread(name='RVPThread', target=self.threadJob)
-			self.thread.setDaemon(True)
-			self.thread.start()
-
-	def stopThread(self):
-		'''
-		stops the thread
-		'''
-		self.stop_thread = True
-		self.thread.join()
