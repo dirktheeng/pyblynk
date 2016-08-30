@@ -10,14 +10,24 @@ class AccellGyro(mpu6050):
 	def __init__(self):
 		mpu6050.__init__(self, 0x68)
 		self.calFile = 'accelCal.txt'
-		if not os.path.exists('./' + self.calFile):
+		self.angCorFile = 'angCor.txt'
+		if not os.path.exists('./' + self.calFile) or not os.path.exists('./'+self.angCorFile):
+			self.angCor = np.asarray([0,0])
 			self.setCalibration()
+		else:
+			self.rotationMatrix = np.loadtxt('./'+self.calFile)
+			self.angCor = np.loadtxt('./'+self.angCorFile)
 
-	def measureTilt(self, nSamples=1000):
-		meas = self._measureRaw(nSamples)
+	def measureTilt(self, nSamples=1000, vect=None):
+		if vect is None:
+			vect = self._measureRaw(nSamples)
+		raw = self._measureRaw(nSamples)
+		print(raw)
+		meas = np.dot(self.rotationMatrix, vect)
+		print(meas)
 		roll = np.arctan(-meas[0]/meas[2])
 		pitch = np.arctan(meas[1]/np.sqrt(np.power(meas[0],2)+np.power(meas[2],2)))
-		return np.asarray([pitch, roll])
+		return np.asarray([pitch, roll])+self.angCor
 
 	def _measureRaw(self, nSamples=1000, norm=True):
 		data = np.zeros((nSamples, 3))
@@ -31,35 +41,47 @@ class AccellGyro(mpu6050):
 		return meas
 
 	def setCalibration(self):
+		print('Calibration file not found. Starting Calibration Proceedure.')
 		while True:
 			r = raw_input('On a flat, level surface, place sensor box upright, y to continue: ')
 			if r == 'y':
 				break
-		a = self._measureRaw(500)
+		a = self._measureRaw(5000)
 		while True:
 			r = raw_input('On a flat, level surface, place sensor box on the right face, y to continue: ')
 			if r == 'y':
 				break
-		b = self._measureRaw(500)
+		b = self._measureRaw(5000)
 		while True:
 			r = raw_input('On a flat, level surface, place sensor box on the front face, y to continue: ')
 			if r == 'y':
 				break
-		c = self._measureRaw(500)
+		c = self._measureRaw(5000)
 
 		calInList = [a, b, c]
 		
 		calInListOrder = [np.where(a == a.max())[0][0], np.where(b == b.max())[0][0], np.where(c == c.max())[0][0]]
 		calInList = np.asarray([list(calInList[calInListOrder.index(i)]) for i in range(3)])
-		print('callInList')
-		print(calInList)
 		self.mask = 1.0 - np.identity(3)
-		print(self.mask)
-		#self.calibObjective([0,0,0], (calInList))
-		ret = minimize(self.calibObjective, [0,0,0], args=(calInList[0,:],calInList[1,:],calInList[2,:]))
-		print(ret.x)
+		print
+		print('Measurements complete, starting optimization....')
+		ret = minimize(self.calibObjective, [0,0,0], args=(calInList[0,:],calInList[1,:],calInList[2,:]), tol=1e-10)
 		print(ret.message)
-		#print(np.dot(self.rotate3D(*ret.x), calInList))
+		print
+		print('Optimized Calibration Angles (deg):')
+		ang = ret.x
+		print(ang*180.0/(np.pi))
+		print
+		self.rotationMatrix = self.rotate3D(*ang)
+		print('Calibration complete! Final Rotation Matrix:')
+		print(self.rotationMatrix)
+		print
+		self.angCor = -1.0*self.measureTilt(vect=a)
+		print('Angle Correction (deg):')
+		print(self.angCor*180.0/np.pi)
+		print
+		np.savetxt('./'+self.calFile, self.rotationMatrix)
+		np.savetxt('./'+self.angCorFile, self.angCor)
 
 
 	def rotateAboutAxis(self, axis, theta):
@@ -76,8 +98,10 @@ class AccellGyro(mpu6050):
 		rot = np.dot(rm, args)
 		#print(rot)
 		mult = np.multiply(self.mask, rot)
-		return np.sum(np.abs(mult))
+		err1 = np.sum(np.abs(mult))
+		return -1.0*(rot[0,0]+rot[1,1]+rot[2,2]) + err1
 
 if __name__ == '__main__':
 	s = AccellGyro()
-	s.measureTilt()
+	print('roll and pitch:')
+	print(s.measureTilt()*180.0/np.pi)
