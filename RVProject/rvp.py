@@ -23,6 +23,7 @@ sys.path.append(
 import lib.hw as blynk_hw
 import lib.client as blynk_client
 from pypower import PyPower
+from pytilt import PyTilt
 
 
 TOKEN			= '9d25bd61aa1243819180b58e523a37b6'
@@ -30,8 +31,14 @@ TOKEN			= '9d25bd61aa1243819180b58e523a37b6'
 
 #PyPower setup
 pp = PyPower()
-print('starting thread')
+print('starting thread for PyPower')
 pp.startThread()
+print('running...')
+
+#PyPower setup
+pt = PyTilt()
+print('starting thread for PyTilt')
+pt.startThread()
 print('running...')
 
 # Blynk Setup

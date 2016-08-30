@@ -50,7 +50,6 @@ class AccellGyro(mpu6050):
 		'''
 		if vect is None:
 			vect = self._measureRaw(nSamples)
-		raw = self._measureRaw(nSamples)
 		meas = np.dot(self.rotationMatrix, vect)
 		roll = np.arctan(-meas[0]/meas[2])
 		pitch = np.arctan(meas[1]/np.sqrt(np.power(meas[0],2)+np.power(meas[2],2)))
