@@ -1,3 +1,14 @@
+"""
+a library for measuring roll and pitch from an accelerameter inside a project box.
+The library contains algorithms to account for misalignment of the sensor with the projecr box.
+"""
+
+__author__ = 'Dirk Van Essendelft'
+__date__ = '2016-07-09'
+__version__ = '0.1.0'
+__credits__ = 'Copyright, Dirk Van Essendelft'
+__license__ = 'MIT'
+
 from mpu6050 import mpu6050
 import numpy as np
 from scipy.optimize import minimize
@@ -19,17 +30,48 @@ class AccellGyro(mpu6050):
 			self.angCor = np.loadtxt('./'+self.angCorFile)
 
 	def measureTilt(self, nSamples=1000, vect=None):
+		'''
+		Claculates the roll ans pitch angles after being calibrated
+		
+		Inputs
+		------
+		nSamples (int):
+			The number of sample measueements to make to calculate the roll and pitch
+
+		vect (array):
+			A unit vector substitute for measurements
+		
+		Retuns
+		------
+		rp (array):
+			a 2 component vector of the roll pitchdata  
+
+		'''
 		if vect is None:
 			vect = self._measureRaw(nSamples)
 		raw = self._measureRaw(nSamples)
-		print(raw)
 		meas = np.dot(self.rotationMatrix, vect)
-		print(meas)
 		roll = np.arctan(-meas[0]/meas[2])
 		pitch = np.arctan(meas[1]/np.sqrt(np.power(meas[0],2)+np.power(meas[2],2)))
 		return np.asarray([pitch, roll])+self.angCor
 
 	def _measureRaw(self, nSamples=1000, norm=True):
+		'''
+		Claculates the vector from the acceleeameter
+		
+		Inputs
+		------
+		nSamples (int):
+			The number of sample measueements to make to calculate the vector
+		
+		norm (bool):
+			A flag that sets normalization toma unit vector
+
+		Retuns
+		------
+		meas (array):
+			a 3 component vector of the accelerameter data  
+		'''
 		data = np.zeros((nSamples, 3))
 		for i in range(nSamples):
 			x = self.get_accel_data()
@@ -41,6 +83,9 @@ class AccellGyro(mpu6050):
 		return meas
 
 	def setCalibration(self):
+		'''
+		calculates the necessary calibratiin parameters to account for sensor misalignment relative to the project box
+		'''
 		print('Calibration file not found. Starting Calibration Proceedure.')
 		while True:
 			r = raw_input('On a flat, level surface, place sensor box upright, y to continue: ')
@@ -85,18 +130,47 @@ class AccellGyro(mpu6050):
 
 
 	def rotateAboutAxis(self, axis, theta):
+		'''
+		rotates a vector about a given axis a given ammount
+
+		Inputs
+		------
+		axis (array):
+			vector defining rotation axis
+
+		theta (float):
+			angle in radians to rotate
+
+		Returns
+		-------
+		vNew (array):
+			rotated vector
+		'''
 		return expm3(np.cross(np.eye(3), axis/norm(axis)*theta))
 
 	def rotate3D(self, a, b, c):
+		'''
+		combined rotation around the 3 cartesian axes
+
+		Inputs
+		------
+		a, b, c (float):
+			angle in radians to rotate about axes
+
+		Returns
+		-------
+		vNew (array):
+			rotated vector
+		'''
 		return np.dot(np.dot(self.rotateAboutAxis([1,0,0], a), self.rotateAboutAxis([0,1,0], b)), self.rotateAboutAxis([0,0,1], c))
 
 	def calibObjective(self, x, *args):
+		'''
+		objective function for solving rotation matrix values
+		'''
 		args = np.asarray(args)
-		#print('args')
-		#print(args)
 		rm = self.rotate3D(*x)
 		rot = np.dot(rm, args)
-		#print(rot)
 		mult = np.multiply(self.mask, rot)
 		err1 = np.sum(np.abs(mult))
 		return -1.0*(rot[0,0]+rot[1,1]+rot[2,2]) + err1
