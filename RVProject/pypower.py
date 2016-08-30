@@ -2,6 +2,12 @@
 """
 contains all functions and classes related to measuring power for the rvp
 """
+__author__ = 'Dirk Van Essendelft'
+__date__ = '2016-07-09'
+__version__ = '0.1.0'
+__credits__ = 'Copyright, Dirk Van Essendelft'
+__license__ = 'MIT'
+
 import Adafruit_ADS1x15
 import threading
 import time
@@ -22,9 +28,25 @@ class PyPower(object):
 		self.stop_thread = False
 
 	def _measureVoltage(self, pin):
+		'''
+		measures the voltage and scales it according to the gain
+		
+		Inputs
+		------
+		pin (int):
+			The pin to read on the ADC
+			
+		Returns
+		-------
+		voltage (float):
+			the voltage on the pin
+		'''
 		return self._adc.read_adc(pin, gain=self.gain) / 32768.0 * self.gain_dict[self.gain]
 
 	def measureCurrent(self):
+		'''
+		measures the current using the hall effect sensor
+		'''
 		curr_voltage = self._measureVoltage(self.current_pin)
 		ref_voltage  = self._measureVoltage(self.ref_voltage_pin)
 		sensitivity = self._calcSensitivity(ref_voltage)
@@ -33,12 +55,14 @@ class PyPower(object):
 			self.ave_current = self.ave_fact * current + (1.0 - self.ave_fact) * self.ave_current
 		else:
 			self.ave_current = current
-#		print curr_voltage, ref_voltage, sensitivity, self.ave_current
 
 	def _calcSensitivity(self, voltage):
 		return 1.0/(self.curr_slope * voltage + self.curr_intercept)
 
 	def threadJob(self):
+		'''
+		worker for the threaded job
+		'''
 		while True:
 			self.measureCurrent()
 			time.sleep(0.05)
@@ -46,11 +70,17 @@ class PyPower(object):
 				break
 
 	def startThread(self):
+		'''
+		starts the thread
+		'''
 		if not self.thread:
 			self.thread = threading.Thread(name='RVPThread', target=self.threadJob)
 			self.thread.setDaemon(True)
 			self.thread.start()
 
 	def stopThread(self):
+		'''
+		stops the thread
+		'''
 		self.stop_thread = True
 		self.thread.join()
