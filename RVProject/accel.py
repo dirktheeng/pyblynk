@@ -23,12 +23,17 @@ class AccellGyro(mpu6050):
 		mpu6050.__init__(self, 0x68)
 		self.calFile = 'accelCal.txt'
 		self.angCorFile = 'angCor.txt'
-		if not os.path.exists('./' + self.calFile) or not os.path.exists('./'+self.angCorFile):
-			self.angCor = np.asarray([0,0])
+		self.oSetFile = 'oSet.txt'
+		if not os.path.exists('./' + self.oSetFile):
+			#self.angCor = np.asarray([0,0])
 			self.setCalibration()
 		else:
-			self.rotationMatrix = np.loadtxt('./'+self.calFile)
-			self.angCor = np.loadtxt('./'+self.angCorFile)
+			#self.rotationMatrix = np.loadtxt('./'+self.calFile)
+			#self.angCor = np.loadtxt('./'+self.angCorFile)
+			self.oSet = np.loadtxt('./'+self.oSetFile)
+			#self.angCor = np.asarray([0,0])
+			#self.rotationMatrix = np.identity(3)
+
 
 	def measureTilt(self, nSamples=1000, vect=None):
 		'''
@@ -50,12 +55,19 @@ class AccellGyro(mpu6050):
 		'''
 		if vect is None:
 			vect = self._measureRaw(nSamples)
-		meas = np.dot(self.rotationMatrix, vect)
-		roll = np.arctan(-meas[0]/meas[2])
-		pitch = np.arctan(meas[1]/np.sqrt(np.power(meas[0],2)+np.power(meas[2],2)))
-		return np.asarray([pitch, roll])+self.angCor
+		print('vect')
+		print(vect)
+#		meas = np.dot(self.rotationMatrix, vect)
+		meas = vect
+		#roll = np.arctan(-meas[0]/meas[2])
+		#pitch = np.arctan(meas[1]/np.sqrt(np.power(meas[0],2)+np.power(meas[2],2)))
+		pitch = self._calcPitch(vect)
+		roll = self._calcRoll(vect)
+#		roll = np.arctan(meas[0]/np.sqrt(np.power(meas[1],2)+np.power(meas[2],2)))
+		return np.asarray([pitch, roll])
 
-	def _measureRaw(self, nSamples=1000, norm=True):
+
+	def _measureRaw(self, nSamples=1000, normalize=True):
 		'''
 		Claculates the vector from the acceleeameter
 		
@@ -76,11 +88,19 @@ class AccellGyro(mpu6050):
 		for i in range(nSamples):
 			x = self.get_accel_data()
 			data[i,:] = np.asarray([x['x'], x['y'], x['z']])
-		if norm:
-			meas = np.mean(data, 0)
-		meas /= np.sqrt(np.sum(np.power(meas, 2)))
+		meas = np.mean(data, 0)
+		if normalize:
+			meas /= norm(meas)
 
 		return meas
+
+	def _calcPitch(self, v):
+		c = self.projectOntoPlane(v, self.oSet[1, :])
+		return self.angleBtVectors(self.oSet[2, :], c) - np.pi/2.0
+
+	def _calcRoll(self, v):
+		c = self.projectOntoPlane(v, self.oSet[2, :])
+		return self.angleBtVectors(self.oSet[1, :], c) - np.pi/2.0
 
 	def setCalibration(self):
 		'''
@@ -97,37 +117,64 @@ class AccellGyro(mpu6050):
 			if r == 'y':
 				break
 		b = self._measureRaw(5000)
-		while True:
-			r = raw_input('On a flat, level surface, place sensor box on the front face, y to continue: ')
-			if r == 'y':
-				break
-		c = self._measureRaw(5000)
 
-		calInList = [a, b, c]
-		
-		calInListOrder = [np.where(a == a.max())[0][0], np.where(b == b.max())[0][0], np.where(c == c.max())[0][0]]
-		calInList = np.asarray([list(calInList[calInListOrder.index(i)]) for i in range(3)])
-		self.mask = 1.0 - np.identity(3)
-		print
-		print('Measurements complete, starting optimization....')
-		ret = minimize(self.calibObjective, [0,0,0], args=(calInList[0,:],calInList[1,:],calInList[2,:]), tol=1e-10)
-		print(ret.message)
-		print
-		print('Optimized Calibration Angles (deg):')
-		ang = ret.x
-		print(ang*180.0/(np.pi))
-		print
-		self.rotationMatrix = self.rotate3D(*ang)
-		print('Calibration complete! Final Rotation Matrix:')
-		print(self.rotationMatrix)
-		print
-		self.angCor = -1.0*self.measureTilt(vect=a)
-		print('Angle Correction (deg):')
-		print(self.angCor*180.0/np.pi)
-		print
-		np.savetxt('./'+self.calFile, self.rotationMatrix)
-		np.savetxt('./'+self.angCorFile, self.angCor)
+		c = np.cross(a, b)
+		b = np.cross(a, c)
+		a /= norm(a)
+		b /= norm(b)
+		c /= norm(c)
+		oSet = np.zeros((3,3))
+		oSet[0, :] = a
+		oSet[1, :] = b
+		oSet[2, :] = c
+		np.savetxt('./' + self.oSetFile, oSet)
+		self.oSet = oSet
 
+#		while True:
+#			r = raw_input('On a flat, level surface, place sensor box on the front face, y to continue: ')
+#			if r == 'y':
+#				break
+#		c = self._measureRaw(5000)
+#
+#		calInList = [a, b, c]
+#		
+#		calInListOrder = [np.where(a == a.max())[0][0], np.where(b == b.max())[0][0], np.where(c == c.max())[0][0]]
+#		calInList = np.asarray([list(calInList[calInListOrder.index(i)]) for i in range(3)])
+#		self.mask = 1.0 - np.identity(3)
+#		print
+#		print('Measurements complete, starting optimization....')
+#		ret = minimize(self.calibObjective, [0,0,0], args=(calInList[0,:],calInList[1,:],calInList[2,:]), tol=1e-10)
+#		print(ret.message)
+#		print
+#		print('Optimized Calibration Angles (deg):')
+#		ang = ret.x
+#		print(ang*180.0/(np.pi))
+#		print
+#		self.rotationMatrix = self.rotate3D(*ang)
+#		print('Calibration complete! Final Rotation Matrix:')
+#		print(self.rotationMatrix)
+#		print
+#		self.angCor = -1.0*self.measureTilt(vect=a)
+#		print('Angle Correction (deg):')
+#		print(self.angCor*180.0/np.pi)
+#		print
+#		np.savetxt('./'+self.calFile, self.rotationMatrix)
+#		np.savetxt('./'+self.angCorFile, self.angCor)
+
+
+	def _normalize(self, x):
+		return x/norm(x)
+
+	def projectOntoPlane(self, vect, normal):
+		nn = norm(normal)
+		d = np.dot(vect, normal) / nn
+		p = np.multiply(d, normal / nn)
+		return vect - p
+
+	def angleBtVectors(self, v1, v2):
+		v1 /= norm(v1)
+		v2 /= norm(v2)
+		return np.arccos(np.clip(np.dot(v1, v2), -1.0, 1.0))
 
 	def rotateAboutAxis(self, axis, theta):
 		'''
@@ -179,3 +226,7 @@ if __name__ == '__main__':
 	s = AccellGyro()
 	print('roll and pitch:')
 	print(s.measureTilt()*180.0/np.pi)
+#	v = np.asarray([0,2,0])
+#	n = np.asarray([1,0,0])
+#	c =s.projectOntoPlane(v, n)
+#	print(c)
