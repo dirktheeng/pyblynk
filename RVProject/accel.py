@@ -20,13 +20,15 @@ sensor = mpu6050(0x68)
 class AccellGyro(mpu6050):
 	def __init__(self):
 		mpu6050.__init__(self, 0x68)
-		self.calFile = 'accelCal.txt'
 		self.angCorFile = 'angCor.txt'
 		self.oSetFile = 'oSet.txt'
-		if not os.path.exists('./' + self.oSetFile):
+		self.scaleCorFile = 'scaleCor.txt'
+		if not os.path.exists('./' + self.oSetFile) or not os.path.exists('./' + self.angCorFile) or  not os.path.exists('./' + self.scaleCorFile):
 			self.setCalibration()
 		else:
+			self.scaleCor = np.atleast_1d(np.loadtxt('./'+self.scaleCorFile))
 			self.oSet = np.loadtxt('./'+self.oSetFile)
+			self.angCor = np.loadtxt('./'+self.angCorFile)
 
 
 	def measureTilt(self, nSamples=1000, vect=None):
@@ -54,7 +56,7 @@ class AccellGyro(mpu6050):
 		meas = vect
 		pitch = self._calcPitch(vect)
 		roll = self._calcRoll(vect)
-		return np.asarray([pitch, roll])
+		return np.asarray([pitch, roll])*self.scaleCor[0]+self.angCor
 
 
 	def _measureRaw(self, nSamples=1000, normalize=True):
@@ -97,6 +99,8 @@ class AccellGyro(mpu6050):
 		calculates the necessary calibratiin parameters to account for sensor misalignment relative to the project box
 		'''
 		print('Calibration file not found. Starting Calibration Proceedure.')
+		self.angCor = np.asarray([0, 0])
+		self.scaleCor = np.asarray([1.0])
 		while True:
 			r = raw_input('On a flat, level surface, place sensor box upright, y to continue: ')
 			if r == 'y':
@@ -113,12 +117,37 @@ class AccellGyro(mpu6050):
 		a /= norm(a)
 		b /= norm(b)
 		c /= norm(c)
+
 		oSet = np.zeros((3,3))
 		oSet[0, :] = a
 		oSet[1, :] = b
 		oSet[2, :] = c
-		np.savetxt('./' + self.oSetFile, oSet)
 		self.oSet = oSet
+
+		while True:
+			r = raw_input('pitch down 45 degrees, y to continue: ')
+			if r == 'y':
+				break
+		pd = self.measureTilt(5000)
+		print(pd)
+		self.scaleCor = np.asarray([np.pi/4.0 / np.abs(pd).max()])
+		np.savetxt('./' + self.scaleCorFile, self.scaleCor)
+		while True:
+			r = raw_input('On a flat, level surface, place sensor box upright in a known position, y to continue: ')
+			if r == 'y':
+				break
+		rp1 = self.measureTilt(5000)
+		while True:
+			r = raw_input('rotate the box 180 degrees and put in the same position, y to continue: ')
+			if r == 'y':
+				break
+		rp2 = self.measureTilt(5000)
+		absrp1 = np.abs(rp1)
+		absrp2 = np.abs(rp2)
+		self.angCor = -1.0*(rp1 + rp2)/2.0
+
+		np.savetxt('./' + self.oSetFile, self.oSet)
+		np.savetxt('./' + self.angCorFile, self.angCor)
 
 	def projectOntoPlane(self, vect, normal):
 		nn = norm(normal)
